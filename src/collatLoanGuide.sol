@@ -182,6 +182,7 @@ contract collatLoanGuide {
     *   withdrawEther() external
     *               bio     :   Function that allows the user to withdraw their deposited ether if they don't want a loan.
     *                           Requires the user to not have an active loan.
+    *                           Requires the user to have previously made a deposit.
     *                           Requires the contract to have enough ether to return to the user.
     *                           Updates loan details before handling the return of user's original ether deposit.
     *                           Transfers the user's original ether deposit from the contract to the user's wallet.   
@@ -193,6 +194,7 @@ contract collatLoanGuide {
         //Grab the original deposited amount.
         uint depositedAmount = loanMap[msg.sender].deposited;
         
+        //Only allow user's to withdraw if they have made a deposit.
         require(depositedAmount > 0, 'No ether to withdraw.');
 
         //Only allow the withdraw of ether if the contract has enough.
