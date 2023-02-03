@@ -23,10 +23,10 @@ contract collatLoanGuide {
     ISupraSValueFeed internal sValueFeed;
     //Percentage used to calculate available loan.
     uint public loanPercentage;
-    //Percentage used to calculate interest.
-    uint public interestPercentage;
-    //Minimum amount of ether to be deposited.
-    uint public minimumDeposit;
+    //Percentage used to calculate fee.
+    uint public feePercentage;
+    //Minimum amount of ether to be loaned/deposited.
+    uint public minimumLoan;
 
     //Mapping of users address to loanDetails struct. Holds loan data for each user.
     mapping(address => loanDetails) public loanMap;
@@ -34,9 +34,10 @@ contract collatLoanGuide {
     //Struct for loan details
     struct loanDetails {
         bool loaned;    //Boolean flag to show loan status. FALSE = Not Taken, TRUE = Taken
-        uint deposited; //Amount of ether (WEI) that the user has deposited for their loan.
+        uint deposited; //Total amount of ether (WEI) that the user has deposited for their loan.
+        uint depositedAvailable; //Amount of deposited ether that is available/has not been used.
         uint loan;      //Amount of USDC that the user has withdrawn for their loan.
-        uint interest;  //Amount of interest that the user must pay in addition to the original loan amount.
+        uint fee;  //Amount of fee that the user must pay in addition to the original loan amount.
     }
     
     //--- FUNCTIONS ---\\
@@ -58,58 +59,55 @@ contract collatLoanGuide {
         //----Values----\\
         //Set the loan percenage to 80%.
         loanPercentage = 80;
-        //Set the interest percenage to 10%.
-        interestPercentage = 10;
-        //Set the minimum deposit allowed to .1 ether.
-        minimumDeposit = .1 ether;
+        //Set the fee percenage to 10%.
+        feePercentage = 10;
+        //Set the minimum loan/deposit allowed to .1 ether.
+        minimumLoan = .1 ether;
     }
 
     /*
     *   depositEther() extrenal payable
     *               bio     :   Payable function that allows a user to deposit ether to the contract.
-    *                           Requires the user to not have an active loan 
     *                           Requires the sent ether to be >= the set minimum deposit value.
-    *                           User can make multiple deposits before taking a loan out.
+    *                           User can make multiple deposits.
     */
     function depositEther() external payable{
-        //Only allow deposits for users that do not have an active loan. 
-        //A loan is considered active (TRUE) once it is taken through the withdraw function.
-        require(loanMap[msg.sender].loaned == false, 'User has an active loan.');
+        //Only allow deposits that are >= the set minimumLoan amount.
+        require(msg.value >= minimumLoan, 'Not enough ether sent.');
 
-        //Only allow deposits that are >= the set minimumDeposit amount.
-        require(msg.value >= minimumDeposit, 'Not enough ether sent.');
-
-        //Update the amount of ether that the user has deposited.
+        //Update the amount of ether that the user has deposited and has available.
         //By += the deposited amount, we enable the user to make multiple deposits before taking out a loan.
         loanMap[msg.sender].deposited += msg.value;
+        loanMap[msg.sender].depositedAvailable += msg.value;
     } 
 
-
     /*
-    *   withdrawLoan() external
-    *               bio     :   Function that allows the user to withdraw USDC (take the loan) dependent on their deposited amount.
-    *                           Requires the user to not have an active loan.
-    *                           Requires the user to have deposited ether >= the set minimum deposit value.
-    *                           Requires the contract to have an enough USDC to loan.
+    *   withdrawLoan(uint loanAmount) external
+    *               param1  :   uint loanAmount         -   Amount of available ether to take the loan against.
+    *               bio     :   Function that allows the user to withdraw USDC (take the loan) dependent on their deposited available amount.
+    *                           Requires the user to have available ether >= the minimum loan amount.
+    *                           Requires the user to have enough available ether for the requested amount.
     *                           Updates the loan details associated with the user's address
     *                           Transfers the USDC loan to the user's address.
     */
-    function withdrawLoan() external {
-        //Only allow withdraws for users that do not have an active loan.
-        require(loanMap[msg.sender].loaned == false, 'User has an active loan.');
+    function withdrawLoan(uint loanAmount) external {
         //Only allow withdraws for users that have deposited enough ether.
-        require(loanMap[msg.sender].deposited >= minimumDeposit, 'Not enough ether deposited.');
+        require(loanMap[msg.sender].depositedAvailable >= minimumLoan, 'Not enough ether deposited.');
 
-        //Calls the calculateUsdc(uint depositedAmount) function to calculate the loan amount and interest in USDC.
-        //Pass the user's amount of ether deposited as the depositedAmount parameter.
-        (uint amount, uint interest) = calculateUsdc(loanMap[msg.sender].deposited);
+        //loanMap[msg.sender].deposited
+        require(loanMap[msg.sender].depositedAvailable >= loanAmount, 'Not enough ETH deposited.');
+
+        //Calls the calculateUsdc(uint loanAmount) function to calculate the loan amount and fee in USDC.
+        //Pass the requested amount as the parameter..
+        (uint amount, uint fee) = calculateUsdc(loanAmount);
 
         //Only allow withdraws if there is enough USDC to loan in the contract.
         require(usdc.balanceOf(address(this))>= amount, 'Not enough USDC in contract.');
 
         //Update the loan details associated with the user's address.
-        loanMap[msg.sender].loan = amount;
-        loanMap[msg.sender].interest = interest;
+        loanMap[msg.sender].depositedAvailable -= loanAmount;
+        loanMap[msg.sender].loan += amount;
+        loanMap[msg.sender].fee += fee;
         loanMap[msg.sender].loaned = true;
 
         //Transfer the calculated amount of USDC to the user's address.
@@ -117,16 +115,16 @@ contract collatLoanGuide {
     }
 
     /*
-    *   calculateUsdc(uint depositedAmount) public view returns (uint, uint)
-    *               param1  :   uint depositedAmount   -   Amount of ether (in WEI, 18 decimals) that the user has deposited.
+    *   calculateUsdc(uint loanAmount) public view returns (uint, uint)
+    *               param1  :   uint loanAmount        -   Amount of ether (in WEI, 18 decimals) that the user has deposited.
     *               returns :   uint amount            -   Amount to be withdrawn (USDC, 6 decimals).
-    *                           uint interest          -   Amount of interest to be paid back (USDC, 6 decimals).
-    *               bio     :   Function that calculates the available loan and interest based on the user's deposited ether.
+    *                           uint fee               -   Amount of fee to be paid back (USDC, 6 decimals).
+    *               bio     :   Function that calculates the available loan and fee based on the passed ether.
     *                           Converts the deposited ether (in WEI) to USDC.
     */
-    function calculateUsdc(uint depositedAmount) public view returns (uint, uint) {
-        //Determine the loan amount by taking the percentage of the user's deposited ether (in WEI, 18 decimals).
-        uint amount = depositedAmount * loanPercentage / 100;
+    function calculateUsdc(uint loanAmount) public view returns (uint, uint) {
+        //Determine the loan amount by taking the percentage of the requested amount (in WEI, 18 decimals).
+        uint amount = loanAmount * loanPercentage / 100;
 
         //Obtain the latest ETH/USDT price value from the SupraOracles S-Value Price Feed (feed returns 8 decimals).
         (int ethPrice, /*uint timestamp */) = sValueFeed.checkPrice("eth_usdt");
@@ -138,38 +136,38 @@ contract collatLoanGuide {
         //Due to multiplication, amount is currently 10**36 (36 decimals). Convert to 6 to match USDC decimal count.
         amount = amount / (10 ** 30);
 
-        //Calculate the interest on the USDC value.
-        uint interest = amount * interestPercentage / 100 ;
+        //Calculate the fee on the USDC value.
+        uint fee = amount * feePercentage / 100 ;
 
-        //Return the loan amount and interest
-        return (amount, interest);
+        //Return the loan amount and fee
+        return (amount, fee);
     }
 
     /*
     *   payOff() external
-    *               bio     :   Function that allows the user to pay off their loan.
-    *                           Requires the user to have an active loan.
+    *               bio     :   Function that allows the user to pay off their loan. Users must pay off all at once.
+    *                           Requires the user to have a loan balance that needs to be paid off.
     *                           Requires the user to have approved the proper amount of tokens to be transferred.
     *                           Updates loan details before handling token transfer and return of user's original ether deposit.
-    *                           Transfers USDC from the user's wallet to this contract equivalent to the loan amount and interest.
-    *                           Transfers the user's original ether deposit from the contract to the user's wallet.
+    *                           Transfers USDC from the user's wallet to this contract equivalent to the loan amount and fee.
+    *                           Transfers the user's ether collateral from the contract to the user's wallet.
     */
     function payOff() external {
-        //Only allow pay off of users with an active loan.
-        require(loanMap[msg.sender].loaned == true, 'No loan to pay off.');
-        //Grab the required payment amount (loaned amount + interest)
-        uint paymentAmount = loanMap[msg.sender].loan + loanMap[msg.sender].interest;
+        //Only allow users with a loan to call this function.
+        require(loanMap[msg.sender].loan > 0, 'No loan to pay off.');
+        //Grab the required payment amount (loaned amount + fee)
+        uint paymentAmount = loanMap[msg.sender].loan + loanMap[msg.sender].fee;
         //Only allow pay off if the user has set the proper allowance.
         require(usdc.allowance(msg.sender, address(this)) >= paymentAmount, 'Not enough allowance.');
 
-        //Grab the original deposited amount.
-        uint depositedAmount = loanMap[msg.sender].deposited;
+        //Grab the amount of ether used for the loan.
+        uint depositedAmount = loanMap[msg.sender].deposited - loanMap[msg.sender].depositedAvailable;
 
         //Update the loan details.
         loanMap[msg.sender].loaned = false;
-        loanMap[msg.sender].deposited = 0;
+        loanMap[msg.sender].deposited = loanMap[msg.sender].depositedAvailable;
         loanMap[msg.sender].loan = 0;
-        loanMap[msg.sender].interest = 0;
+        loanMap[msg.sender].fee = 0;
 
         //Transfer the USDC from the user's wallet to this contract.
         usdc.transferFrom(msg.sender, address(this), paymentAmount);
@@ -181,45 +179,37 @@ contract collatLoanGuide {
     /*
     *   withdrawEther() external
     *               bio     :   Function that allows the user to withdraw their deposited ether if they don't want a loan.
-    *                           Requires the user to not have an active loan.
-    *                           Requires the user to have previously made a deposit.
+    *                           Requires the user to have enough available ether.
     *                           Requires the contract to have enough ether to return to the user.
     *                           Updates loan details before handling the return of user's original ether deposit.
     *                           Transfers the user's original ether deposit from the contract to the user's wallet.   
     */
-    function withdrawEther() external {
-        //Only allow user's to withdraw their deposited ether if they don't have an active loan.
-        require(loanMap[msg.sender].loaned == false, 'User has an active loan.');
-
-        //Grab the original deposited amount.
-        uint depositedAmount = loanMap[msg.sender].deposited;
-        
-        //Only allow user's to withdraw if they have made a deposit.
-        require(depositedAmount > 0, 'No ether to withdraw.');
+    function withdrawEther(uint withdrawAmount) external {
+        //Only allow user's to withdraw if they have enough ether available to be withdrawn.
+        require(loanMap[msg.sender].depositedAvailable >= withdrawAmount, 'Not enough ether available to withdraw.');
 
         //Only allow the withdraw of ether if the contract has enough.
-        require(address(this).balance >= depositedAmount, 'Not enough ether in contract.');
+        require(address(this).balance >= withdrawAmount, 'Not enough ether in contract.');
 
         //Update the loan details.
-        loanMap[msg.sender].loaned = false;
-        loanMap[msg.sender].deposited = 0;
-        loanMap[msg.sender].loan = 0;
-        loanMap[msg.sender].interest = 0;
+        loanMap[msg.sender].deposited -= withdrawAmount; 
+        loanMap[msg.sender].depositedAvailable -= withdrawAmount;
 
         //Transfer the originally deposited ether from this contract to the user's wallet.
-        payable(msg.sender).transfer(depositedAmount);
+        payable(msg.sender).transfer(withdrawAmount);
     }
 
     /*
     *   getLoanDetails() public view returns (bool, uint, uint, uint)
-    *               returns :   bool loaned            -   Loan status. FALSE = Not taken, TRUE = Taken
-    *                           uint deposited         -   Amount of ether that the user has deposited for their loan (WEI, 18 decimals).
-    *                           uint loan              -   Amount of USDC that the user has withdrawn for their loan (USDC, 6 decimals).
-    *                           uint interest          -   Amount of interest that the user must pay in addition to the original loan amount (USDC 6 decimals).
+    *               returns :   bool loaned             -   Loan status. FALSE = Not taken, TRUE = Taken
+    *                           uint deposited          -   Total Amount of ether that the user has deposited (WEI, 18 decimals).
+    *                           uint depositedAvailable -   Amount of ether that the user has not used yet (WEI, 18 decimals).
+    *                           uint loan               -   Amount of USDC that the user has withdrawn for their loan (USDC, 6 decimals).
+    *                           uint fee                -   Amount of fee that the user must pay in addition to the original loan amount (USDC 6 decimals).
     *               bio     :   Function that returns the loan details for the calling user's address.
     */
-    function getLoanDetails() public view returns (bool, uint, uint, uint){
-        return (loanMap[msg.sender].loaned, loanMap[msg.sender].deposited, loanMap[msg.sender].loan, loanMap[msg.sender].interest);
+    function getLoanDetails() public view returns (bool, uint, uint, uint, uint){
+        return (loanMap[msg.sender].loaned, loanMap[msg.sender].deposited, loanMap[msg.sender].depositedAvailable, loanMap[msg.sender].loan, loanMap[msg.sender].fee);
     }
 
 }

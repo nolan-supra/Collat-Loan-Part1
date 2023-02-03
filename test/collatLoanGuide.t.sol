@@ -15,6 +15,7 @@ contract TestContract is Test {
 
     bool loaned;
     uint deposited;
+    uint depositedAvailable;
     uint loan;
     uint interest;
 
@@ -36,12 +37,12 @@ contract TestContract is Test {
 
     //Test default deposit
     function testDeposit(uint96 testAmount) public {
-        vm.assume(testAmount >= c.minimumDeposit());
+        vm.assume(testAmount >= c.minimumLoan());
 
         deal(userAdr, testAmount);
 
         c.depositEther{value: testAmount}();
-        (loaned, deposited, loan, interest) = c.getLoanDetails();
+        (loaned, deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
         
         //Check balance of ether 
         assertEq(testAmount, deposited);
@@ -49,34 +50,32 @@ contract TestContract is Test {
 
     //Test multiple deposits in a row
     function testDeposit_MultipleDeposit(uint96 testAmount, uint8 ii) public{
-        vm.assume(testAmount >= c.minimumDeposit());
+        vm.assume(testAmount >= c.minimumLoan());
         vm.assume(ii > 2);
         for(uint i = 1; i < ii; i++){
             deal(userAdr, testAmount);
             c.depositEther{value: testAmount}();
-            (loaned, deposited, loan, interest) = c.getLoanDetails();
+            (loaned, deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
             assertEq(testAmount*i, deposited);
         }
     }
 
     //Test deposit with less than minimum required ether
     function testDeposit_LessThanMin(uint96 testAmount) public {
-        vm.assume(testAmount < c.minimumDeposit());
+        vm.assume(testAmount < c.minimumLoan());
         deal(userAdr, testAmount);
 
         vm.expectRevert();
         c.depositEther{value: testAmount}();
     }
 
-    //Test deposit when user already has active loan
-    function testDeposit_ActiveLoan() public {
+    //Test deposit when user already took loan
+    function testDeposit_AfterWithdrawLoan() public {
         deal(userAdr, testAmount * 2);
         deal(usdc, address(c),  testAmount);
 
         c.depositEther{value: testAmount}();
-        c.withdrawLoan();
-
-        vm.expectRevert();
+        c.withdrawLoan(testAmount);
         c.depositEther{value: testAmount}();
     }
 
@@ -84,8 +83,8 @@ contract TestContract is Test {
     function testwithdrawLoan(uint96 testAmount) public{
         testDeposit(testAmount);
         deal(usdc, address(c),  testAmount);
-        c.withdrawLoan();
-        (loaned, deposited, loan, interest) = c.getLoanDetails();
+        c.withdrawLoan(testAmount);
+        (loaned, deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
         assertEq(loan, IERC20(usdc).balanceOf(userAdr));
     }
 
@@ -93,10 +92,10 @@ contract TestContract is Test {
     function testwithdrawLoan_ActiveLoan(uint96 testAmount) public{
         testDeposit(testAmount);
         deal(usdc, address(c),  testAmount);
-        c.withdrawLoan();
+        c.withdrawLoan(testAmount);
 
         vm.expectRevert();
-        c.withdrawLoan();
+        c.withdrawLoan(testAmount);
     }
 
     //Test withdraw with no deposit sent
@@ -104,14 +103,14 @@ contract TestContract is Test {
         //testDeposit(testAmount);
         deal(usdc, address(c),  testAmount);
         vm.expectRevert();
-        c.withdrawLoan();
+        c.withdrawLoan(testAmount);
     }
 
     //Test withdraw with not enough USDC in smart contract
     function testwithdrawLoan_LowUsdc() public{
         testDeposit(testAmount);
         vm.expectRevert();
-        c.withdrawLoan();
+        c.withdrawLoan(testAmount);
     }
 
     //Test calculate loan amount and interest (unit conversion from WEI to USDC)
@@ -154,13 +153,13 @@ contract TestContract is Test {
     //test withdraw of ether when no deposit has been made
     function testWithdrawEther_NoDeposit() public{
         vm.expectRevert();
-        c.withdrawEther();
+        c.withdrawEther(testAmount);
     }
 
     //test withdraw of ether when a deposit has been made and a loan hasn't been taken
     function testWithdrawEther_DepositNoLoan(uint96 testAmount) public{
         testDeposit(testAmount);
-        c.withdrawEther();
+        c.withdrawEther(testAmount);
         assertEq(deposited, userAdr.balance);
     }
 
@@ -168,14 +167,14 @@ contract TestContract is Test {
     function testWithdrawEther_DepositLoan(uint96 testAmount) public{
         testwithdrawLoan(testAmount);
         vm.expectRevert();
-        c.withdrawEther();
+        c.withdrawEther(testAmount);
     }
 
     //test withdraw after withdraw has been made
     function testWithdrawEther_Multiple(uint96 testAmount) public{
         testWithdrawEther_DepositNoLoan(testAmount);
         vm.expectRevert();
-        c.withdrawEther();
+        c.withdrawEther(testAmount);
     }
 
     //test withdraw when not enough ether in smart contract
@@ -183,7 +182,29 @@ contract TestContract is Test {
         testDeposit(testAmount);
         deal(address(c), 0);
         vm.expectRevert();
-        c.withdrawEther();
+        c.withdrawEther(testAmount);
+    }
+
+    function testNew() public{
+        //test deposit
+        /*testDeposit(testAmount);
+        console.log(deposited, depositedAvailable, loan, interest);
+        console.log('\n');
+
+        deal(usdc, address(c),  testAmount);
+
+        c.withdrawLoan(testAmount/2);
+        (loaned, deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
+        console.log(deposited, depositedAvailable, loan, interest);
+        console.log('\n');
+
+        deal(usdc, userAdr,  loan+interest);
+        IERC20(usdc).approve(address(c), loan+interest);
+        c.payOff();
+
+        (loaned, deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
+        console.log(deposited, depositedAvailable, loan, interest);
+        console.log('\n');*/
     }
 
 }
