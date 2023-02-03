@@ -13,7 +13,6 @@ contract TestContract is Test {
     address userAdr;
     uint96 testAmount;
 
-    bool loaned;
     uint deposited;
     uint depositedAvailable;
     uint loan;
@@ -42,7 +41,7 @@ contract TestContract is Test {
         deal(userAdr, testAmount);
 
         c.depositEther{value: testAmount}();
-        (loaned, deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
+        (deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
         
         //Check balance of ether 
         assertEq(testAmount, deposited);
@@ -55,7 +54,7 @@ contract TestContract is Test {
         for(uint i = 1; i < ii; i++){
             deal(userAdr, testAmount);
             c.depositEther{value: testAmount}();
-            (loaned, deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
+            (deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
             assertEq(testAmount*i, deposited);
         }
     }
@@ -84,7 +83,7 @@ contract TestContract is Test {
         testDeposit(testAmount);
         deal(usdc, address(c),  testAmount);
         c.withdrawLoan(testAmount);
-        (loaned, deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
+        (deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
         assertEq(loan, IERC20(usdc).balanceOf(userAdr));
     }
  
@@ -194,7 +193,7 @@ contract TestContract is Test {
         deal(usdc, address(c),  testAmount);
 
         c.withdrawLoan(testAmount/2);
-        (loaned, deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
+        (deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
         console.log(deposited, depositedAvailable, loan, interest);
         console.log('\n');
 
@@ -202,7 +201,7 @@ contract TestContract is Test {
         IERC20(usdc).approve(address(c), loan+interest);
         c.payOff();
 
-        (loaned, deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
+        (deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
         console.log(deposited, depositedAvailable, loan, interest);
         console.log('\n');*/
     }

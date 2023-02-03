@@ -33,7 +33,6 @@ contract collatLoanGuide {
 
     //Struct for loan details
     struct loanDetails {
-        bool loaned;    //Boolean flag to show loan status. FALSE = Not Taken, TRUE = Taken
         uint deposited; //Total amount of ether (WEI) that the user has deposited for their loan.
         uint depositedAvailable; //Amount of deposited ether that is available/has not been used.
         uint loan;      //Amount of USDC that the user has withdrawn for their loan.
@@ -108,7 +107,6 @@ contract collatLoanGuide {
         loanMap[msg.sender].depositedAvailable -= loanAmount;
         loanMap[msg.sender].loan += amount;
         loanMap[msg.sender].fee += fee;
-        loanMap[msg.sender].loaned = true;
 
         //Transfer the calculated amount of USDC to the user's address.
         usdc.transfer(msg.sender, amount);
@@ -164,7 +162,6 @@ contract collatLoanGuide {
         uint depositedAmount = loanMap[msg.sender].deposited - loanMap[msg.sender].depositedAvailable;
 
         //Update the loan details.
-        loanMap[msg.sender].loaned = false;
         loanMap[msg.sender].deposited = loanMap[msg.sender].depositedAvailable;
         loanMap[msg.sender].loan = 0;
         loanMap[msg.sender].fee = 0;
@@ -201,15 +198,14 @@ contract collatLoanGuide {
 
     /*
     *   getLoanDetails() public view returns (bool, uint, uint, uint)
-    *               returns :   bool loaned             -   Loan status. FALSE = Not taken, TRUE = Taken
-    *                           uint deposited          -   Total Amount of ether that the user has deposited (WEI, 18 decimals).
+    *               returns :   uint deposited          -   Total Amount of ether that the user has deposited (WEI, 18 decimals).
     *                           uint depositedAvailable -   Amount of ether that the user has not used yet (WEI, 18 decimals).
     *                           uint loan               -   Amount of USDC that the user has withdrawn for their loan (USDC, 6 decimals).
     *                           uint fee                -   Amount of fee that the user must pay in addition to the original loan amount (USDC 6 decimals).
     *               bio     :   Function that returns the loan details for the calling user's address.
     */
-    function getLoanDetails() public view returns (bool, uint, uint, uint, uint){
-        return (loanMap[msg.sender].loaned, loanMap[msg.sender].deposited, loanMap[msg.sender].depositedAvailable, loanMap[msg.sender].loan, loanMap[msg.sender].fee);
+    function getLoanDetails() public view returns (uint, uint, uint, uint){
+        return (loanMap[msg.sender].deposited, loanMap[msg.sender].depositedAvailable, loanMap[msg.sender].loan, loanMap[msg.sender].fee);
     }
 
 }
