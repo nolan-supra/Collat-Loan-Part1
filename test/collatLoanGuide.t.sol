@@ -87,7 +87,7 @@ contract TestContract is Test {
         (loaned, deposited, depositedAvailable, loan, interest) = c.getLoanDetails();
         assertEq(loan, IERC20(usdc).balanceOf(userAdr));
     }
-
+ 
     //Test withdraw of USDC with an active loan (Withdraw after already withdrawn)
     function testwithdrawLoan_ActiveLoan(uint96 testAmount) public{
         testDeposit(testAmount);

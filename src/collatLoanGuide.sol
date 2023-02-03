@@ -41,7 +41,7 @@ contract collatLoanGuide {
     }
     
     //--- FUNCTIONS ---\\
-
+ 
     /*
     *   constructor(address usdcAddress, address supraAddress)
     *               param1  :   address usdcAddress    -   Used to interact with the USDC contract through the IERC20 interface
