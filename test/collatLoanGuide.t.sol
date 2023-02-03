@@ -74,44 +74,44 @@ contract TestContract is Test {
         deal(usdc, address(c),  testAmount);
 
         c.depositEther{value: testAmount}();
-        c.withdrawUsdc();
+        c.withdrawLoan();
 
         vm.expectRevert();
         c.depositEther{value: testAmount}();
     }
 
     //Test withdraw of USDC after deposit
-    function testWithdrawUsdc(uint96 testAmount) public{
+    function testwithdrawLoan(uint96 testAmount) public{
         testDeposit(testAmount);
         deal(usdc, address(c),  testAmount);
-        c.withdrawUsdc();
+        c.withdrawLoan();
         (loaned, deposited, loan, interest) = c.getLoanDetails();
         assertEq(loan, IERC20(usdc).balanceOf(userAdr));
     }
 
     //Test withdraw of USDC with an active loan (Withdraw after already withdrawn)
-    function testWithdrawUsdc_ActiveLoan(uint96 testAmount) public{
+    function testwithdrawLoan_ActiveLoan(uint96 testAmount) public{
         testDeposit(testAmount);
         deal(usdc, address(c),  testAmount);
-        c.withdrawUsdc();
+        c.withdrawLoan();
 
         vm.expectRevert();
-        c.withdrawUsdc();
+        c.withdrawLoan();
     }
 
     //Test withdraw with no deposit sent
-    function testWithdrawUsdc_NoMinDeposit() public{
+    function testwithdrawLoan_NoMinDeposit() public{
         //testDeposit(testAmount);
         deal(usdc, address(c),  testAmount);
         vm.expectRevert();
-        c.withdrawUsdc();
+        c.withdrawLoan();
     }
 
     //Test withdraw with not enough USDC in smart contract
-    function testWithdrawUsdc_LowUsdc() public{
+    function testwithdrawLoan_LowUsdc() public{
         testDeposit(testAmount);
         vm.expectRevert();
-        c.withdrawUsdc();
+        c.withdrawLoan();
     }
 
     //Test calculate loan amount and interest (unit conversion from WEI to USDC)
@@ -131,7 +131,7 @@ contract TestContract is Test {
 
     //Test the pay off of a loan
     function testPayOff(uint96 testAmount) public {
-        testWithdrawUsdc(testAmount);
+        testwithdrawLoan(testAmount);
         deal(usdc, userAdr,  loan+interest);
         IERC20(usdc).approve(address(c), loan+interest);
         c.payOff();
@@ -145,7 +145,7 @@ contract TestContract is Test {
 
     //test pay off when not enough allowance set
     function testPayOff_LowAllowance(uint96 testAmount) public {
-        testWithdrawUsdc(testAmount);
+        testwithdrawLoan(testAmount);
         IERC20(usdc).approve(address(c), (loan+ interest - 1));
         vm.expectRevert();
         c.payOff();
@@ -166,7 +166,7 @@ contract TestContract is Test {
 
     //test withdraw when a deposit has been made and a loan has been taken
     function testWithdrawEther_DepositLoan(uint96 testAmount) public{
-        testWithdrawUsdc(testAmount);
+        testwithdrawLoan(testAmount);
         vm.expectRevert();
         c.withdrawEther();
     }

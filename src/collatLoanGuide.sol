@@ -86,7 +86,7 @@ contract collatLoanGuide {
 
 
     /*
-    *   withdrawUsdc() external
+    *   withdrawLoan() external
     *               bio     :   Function that allows the user to withdraw USDC (take the loan) dependent on their deposited amount.
     *                           Requires the user to not have an active loan.
     *                           Requires the user to have deposited ether >= the set minimum deposit value.
@@ -94,7 +94,7 @@ contract collatLoanGuide {
     *                           Updates the loan details associated with the user's address
     *                           Transfers the USDC loan to the user's address.
     */
-    function withdrawUsdc() external {
+    function withdrawLoan() external {
         //Only allow withdraws for users that do not have an active loan.
         require(loanMap[msg.sender].loaned == false, 'User has an active loan.');
         //Only allow withdraws for users that have deposited enough ether.
@@ -129,7 +129,7 @@ contract collatLoanGuide {
         uint amount = depositedAmount * loanPercentage / 100;
 
         //Obtain the latest ETH/USDT price value from the SupraOracles S-Value Price Feed (feed returns 8 decimals).
-        (int ethPrice,) = sValueFeed.checkPrice("eth_usdt");
+        (int ethPrice, /*uint timestamp */) = sValueFeed.checkPrice("eth_usdt");
         //Cast the price value to uint and adjust to 18 points of conversion for calculation.
         uint eth = uint(ethPrice) * 10**10;
 
