@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicense
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
 //OpenZeppelin IERC20.sol :: https://docs.openzeppelin.com/contracts/4.x/api/token/erc20#IERC20
@@ -39,7 +39,7 @@ contract collatLoanGuide {
         uint fee;  //Amount of fee that the user must pay in addition to the original loan amount.
     }
     
-    //--- FUNCTIONS ---\\
+    //--- CONSTRUCTOR ---\\
  
     /*
     *   constructor(address usdcAddress, address supraAddress)
@@ -63,6 +63,8 @@ contract collatLoanGuide {
         //Set the minimum loan/deposit allowed to .1 ether.
         minimumLoan = .1 ether;
     }
+
+    //--- FUNCTIONS ---\\
 
     /*
     *   depositEther() extrenal payable
